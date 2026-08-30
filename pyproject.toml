@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sheet-audit-agent"
+version = "0.1.0"
+description = "Audits structured Google Sheets snapshots for duplicate content."
+requires-python = ">=3.12"
+dependencies = ["fastapi>=0.115,<1"]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.28,<1",
+  "mypy>=1.15,<2",
+  "pytest>=9,<10",
+  "pytest-cov>=6,<8",
+  "ruff>=0.11,<1",
+  "uvicorn>=0.34,<1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--strict-markers"
+
+[tool.coverage.run]
+source = ["sheet_audit_agent"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["sheet_audit_agent"]
