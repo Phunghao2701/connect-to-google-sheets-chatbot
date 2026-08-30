@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -568,8 +569,13 @@ class AgentHarnessExecutor:
             messages.extend(history)
         messages.append({"role": "user", "content": user_message})
 
+        api_key = os.getenv("OLLAMA_API_KEY", "").strip()
+        headers: dict[str, str] = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
         try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
+            async with httpx.AsyncClient(timeout=25.0) as client:
                 res = await client.post(
                     f"{ollama_url}/api/chat",
                     json={
@@ -577,10 +583,23 @@ class AgentHarnessExecutor:
                         "messages": messages,
                         "stream": False,
                     },
+                    headers=headers,
                 )
                 if res.status_code == 200:
-                    data = res.json()
-                    return data.get("message", {}).get("content", "").strip()
+                    text = res.text
+                    # Parse either single JSON object or multi-line NDJSON
+                    content_parts: list[str] = []
+                    for line in text.strip().split("\n"):
+                        if line.strip():
+                            try:
+                                d = json.loads(line)
+                                msg = d.get("message", {}).get("content", "")
+                                if msg:
+                                    content_parts.append(msg)
+                            except Exception:
+                                pass
+                    if content_parts:
+                        return "".join(content_parts).strip()
         except Exception:
             return None
         return None
