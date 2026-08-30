@@ -315,73 +315,44 @@ class AgentHarnessExecutor:
 
         for attempt in range(MAX_REPLANS + 1):
             if spec.intent == "fill_method" and snapshot:
-                # 1. Try LLM Entity Extraction for multi-key / complex instructions
-                llm_actions = await LLMEntityExtractor.extract_actions(effective_query, url, model)
-                if llm_actions:
-                    llm_proposals: list[dict[str, Any]] = []
-                    for action in llm_actions:
-                        target_m = action.get("method") or spec.target_method
-                        if not target_m:
-                            continue
-                        action_spec = PlanSpec(
-                            intent="fill_method",
-                            target_method=target_m,
-                            specified_year=action.get("year"),
-                            target_stt=str(action.get("stt")) if action.get("stt") else None,
-                            target_name=action.get("name"),
-                            target_region=spec.target_region,
-                            all_years=action.get("all_years", False),
-                            is_summary=False,
-                            approach_summary=f"llm_action | {target_m} | {action.get('year')}",
-                        )
-                        act_props, _ = StructuredResolver.resolve_fill_method(action_spec, snapshot, index_data)
-                        for ap in act_props:
-                            if not any(p["id"] == ap["id"] for p in llm_proposals):
-                                llm_proposals.append(ap)
-                    if llm_proposals:
-                        proposals = llm_proposals
-                        region_clarification = None
+                # Deterministic multi-clause splitting
+                sub_clauses = cls._split_clauses(effective_query)
+
+                if len(sub_clauses) > 1:
+                    all_multi_proposals: list[dict[str, Any]] = []
+                    last_name: str | None = None
+                    last_stt: str | None = None
+                    region_clarification = None
+
+                    for clause in sub_clauses:
+                        c_intent = IntentAnalyzer.analyze(clause)
+                        if c_intent.intent == "fill_method" or (c_intent.target_method and not c_intent.intent.startswith("scan")):
+                            if not c_intent.target_name and not c_intent.target_stt:
+                                c_intent.target_name = last_name
+                                c_intent.target_stt = last_stt
+                            else:
+                                if c_intent.target_name:
+                                    last_name = c_intent.target_name
+                                if c_intent.target_stt:
+                                    last_stt = c_intent.target_stt
+
+                            c_spec = Planner.plan(c_intent, lessons)
+                            c_props, c_clar = StructuredResolver.resolve_fill_method(c_spec, snapshot, index_data)
+                            if c_clar and not c_props:
+                                region_clarification = c_clar
+                            for cp in c_props:
+                                if not any(p["id"] == cp["id"] for p in all_multi_proposals):
+                                    all_multi_proposals.append(cp)
+
+                    if all_multi_proposals:
+                        proposals = all_multi_proposals
+                    elif region_clarification:
+                        proposals = []
                     else:
                         proposals, region_clarification = StructuredResolver.resolve_fill_method(spec, snapshot, index_data)
                 else:
-                    # 2. Fallback: Deterministic multi-clause splitting
-                    sub_clauses = cls._split_clauses(effective_query)
-
-                    if len(sub_clauses) > 1:
-                        all_multi_proposals: list[dict[str, Any]] = []
-                        last_name: str | None = None
-                        last_stt: str | None = None
-                        region_clarification = None
-
-                        for clause in sub_clauses:
-                            c_intent = IntentAnalyzer.analyze(clause)
-                            if c_intent.intent == "fill_method" or (c_intent.target_method and not c_intent.intent.startswith("scan")):
-                                if not c_intent.target_name and not c_intent.target_stt:
-                                    c_intent.target_name = last_name
-                                    c_intent.target_stt = last_stt
-                                else:
-                                    if c_intent.target_name:
-                                        last_name = c_intent.target_name
-                                    if c_intent.target_stt:
-                                        last_stt = c_intent.target_stt
-
-                                c_spec = Planner.plan(c_intent, lessons)
-                                c_props, c_clar = StructuredResolver.resolve_fill_method(c_spec, snapshot, index_data)
-                                if c_clar and not c_props:
-                                    region_clarification = c_clar
-                                for cp in c_props:
-                                    if not any(p["id"] == cp["id"] for p in all_multi_proposals):
-                                        all_multi_proposals.append(cp)
-
-                        if all_multi_proposals:
-                            proposals = all_multi_proposals
-                        elif region_clarification:
-                            proposals = []
-                        else:
-                            proposals, region_clarification = StructuredResolver.resolve_fill_method(spec, snapshot, index_data)
-                    else:
-                        # Single-clause deterministic write resolution
-                        proposals, region_clarification = StructuredResolver.resolve_fill_method(spec, snapshot, index_data)
+                    # Single-clause deterministic write resolution
+                    proposals, region_clarification = StructuredResolver.resolve_fill_method(spec, snapshot, index_data)
 
                 if region_clarification and not proposals:
                     new_pending = {

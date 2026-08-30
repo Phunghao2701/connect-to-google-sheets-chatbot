@@ -21,7 +21,7 @@ class LLMEntityExtractor:
     ) -> list[dict[str, Any]]:
         url = (ollama_url or os.getenv("OLLAMA_PORT", "http://localhost:11434")).rstrip("/")
         model = ollama_model or os.getenv("OLLAMA_MODEL", "gemma4:31b-cloud")
-        api_key = os.getenv("LLM_API_KEY", "").strip()
+        api_key = os.getenv("LLM_API_KEY") or os.getenv("OLLAMA_API_KEY", "").strip()
 
         headers: dict[str, str] = {}
         if api_key:
@@ -45,11 +45,29 @@ class LLMEntityExtractor:
                     headers=headers,
                 )
                 if res.status_code == 200:
-                    data = res.json()
-                    content = data.get("message", {}).get("content", "").strip()
+                    text = res.text
+                    content = ""
+                    # Handle both NDJSON and standard JSON
+                    for line in text.strip().split("\n"):
+                        if line.strip():
+                            try:
+                                d = json.loads(line)
+                                msg = d.get("message", {}).get("content", "")
+                                if msg:
+                                    content += msg
+                            except Exception:
+                                pass
+                    content = content.strip()
+                    if not content:
+                        try:
+                            d = res.json()
+                            content = d.get("message", {}).get("content", "").strip()
+                        except Exception:
+                            pass
+
                     if content.startswith("[") and content.endswith("]"):
                         return json.loads(content)
-                    m = re.search(r"\[/*\]", content, re.DOTALL)
+                    m = re.search(r"\[.*\]", content, re.DOTALL)
                     if m:
                         return json.loads(m.group(0))
         except Exception:
