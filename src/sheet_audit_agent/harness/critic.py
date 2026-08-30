@@ -71,7 +71,7 @@ class Critic:
                 )
 
         # --- Check 1: Year fidelity (per region) ---
-        if spec.specified_year and snapshot and proposals:
+        if snapshot and proposals:
             method_cols_by_region, global_year_map = cls._build_region_year_col_maps(snapshot)
             for p in proposals:
                 actual_col = p.get("column")
@@ -80,13 +80,19 @@ class Critic:
                 if spec.target_region and spec.target_region in method_cols_by_region:
                     region_map = method_cols_by_region[spec.target_region]
 
-                expected_col = region_map.get(spec.specified_year)
-                if expected_col is not None and actual_col != expected_col:
-                    issues.append(
-                        f"Year fidelity: proposal column {actual_col} != "
-                        f"expected col {expected_col} for năm {spec.specified_year}"
-                    )
-                    failure_type = FailureType.YEAR_MISMATCH
+                # Extract year from proposal label if present, e.g. "Năm 2026"
+                p_label = str(p.get("rowLabel", "")) + " " + str(p.get("explanation", ""))
+                p_year_match = re.search(r"Năm\s*(\d{4})", p_label)
+                p_year = int(p_year_match.group(1)) if p_year_match else spec.specified_year
+
+                if p_year:
+                    expected_col = region_map.get(p_year)
+                    if expected_col is not None and actual_col != expected_col:
+                        issues.append(
+                            f"Year fidelity: proposal column {actual_col} != "
+                            f"expected col {expected_col} for năm {p_year}"
+                        )
+                        failure_type = FailureType.YEAR_MISMATCH
 
         # --- Check 2: Row fidelity (Exact STT matching) ---
         if spec.target_stt and proposals:

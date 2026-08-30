@@ -140,3 +140,19 @@ def test_critic_flags_invalid_year() -> None:
     result = Critic.validate(spec, response, snapshot)
     assert result.passed is False
     assert any("2027" in issue for issue in result.issues)
+
+
+@pytest.mark.anyio
+async def test_harness_multi_clause_no_comma() -> None:
+    """Multi-clause command without comma 'Nguyễn văn Minh 2024 là ck 2026 là tm' should produce 2 proposals."""
+    snapshot = sample_multi_year_snapshot()
+    response = await AgentHarnessExecutor.process_chat(
+        message="Nguyễn văn Minh 2024 là ck 2026 là tm",
+        snapshot=snapshot,
+    )
+    assert response.action_type == "proposals"
+    assert len(response.method_fill_proposals) == 2
+    assert response.method_fill_proposals[0]["proposedValue"] == "CK"
+    assert response.method_fill_proposals[1]["proposedValue"] == "TM"
+
+
