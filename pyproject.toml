@@ -7,7 +7,11 @@ name = "sheet-audit-agent"
 version = "0.1.0"
 description = "Audits structured Google Sheets snapshots for duplicate content."
 requires-python = ">=3.12"
-dependencies = ["fastapi>=0.115,<1"]
+dependencies = [
+  "fastapi>=0.115,<1",
+  "httpx>=0.28,<1",
+  "pydantic>=2.0",
+]
 
 [project.optional-dependencies]
 dev = [

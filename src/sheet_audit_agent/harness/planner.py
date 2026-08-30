@@ -1,4 +1,4 @@
-﻿"""Planner: converts IntentResult + Memory lessons into a PlanSpec."""
+"""Planner: converts IntentResult + Memory lessons into a PlanSpec."""
 
 from __future__ import annotations
 
@@ -17,8 +17,10 @@ class PlanSpec:
     specified_year: int | None
     target_stt: str | None
     target_name: str | None
-    is_summary: bool
-    approach_summary: str
+    target_region: str | None = None
+    all_years: bool = False
+    is_summary: bool = False
+    approach_summary: str = ""
     memory_lessons: list[str] = field(default_factory=list)
     constraints: list[str] = field(default_factory=list)
     retrieval_tags: set[str] = field(default_factory=set)
@@ -30,6 +32,8 @@ class PlanSpec:
             "specified_year": self.specified_year,
             "target_stt": self.target_stt,
             "target_name": self.target_name,
+            "target_region": self.target_region,
+            "all_years": self.all_years,
             "is_summary": self.is_summary,
             "approach_summary": self.approach_summary,
             "memory_lessons": self.memory_lessons,
@@ -72,8 +76,12 @@ class Planner:
             approach_parts.append(f"Điền: {intent.target_method}")
         if intent.specified_year:
             approach_parts.append(f"Năm: {intent.specified_year}")
+        elif intent.all_years:
+            approach_parts.append("Tất cả các năm")
         if intent.target_stt:
             approach_parts.append(f"STT: #{intent.target_stt}")
+        if intent.target_name:
+            approach_parts.append(f"Tên: {intent.target_name}")
         if lessons:
             approach_parts.append(f"Áp dụng {len(lessons)} bài học từ memory")
 
@@ -83,6 +91,8 @@ class Planner:
             retrieval_tags.add(str(intent.specified_year))
         if intent.target_method:
             retrieval_tags.add(intent.target_method.lower())
+        if intent.target_name:
+            retrieval_tags.update(intent.target_name.lower().split())
 
         return PlanSpec(
             intent=intent.intent,
@@ -90,6 +100,8 @@ class Planner:
             specified_year=intent.specified_year,
             target_stt=intent.target_stt,
             target_name=intent.target_name,
+            target_region=intent.target_region,
+            all_years=intent.all_years,
             is_summary=intent.is_summary,
             approach_summary=" | ".join(approach_parts),
             memory_lessons=lesson_texts,

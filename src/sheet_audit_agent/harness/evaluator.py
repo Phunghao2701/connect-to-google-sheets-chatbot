@@ -11,7 +11,16 @@ from sheet_audit_agent.harness.critic import CriticResult
 from sheet_audit_agent.harness.planner import PlanSpec
 from sheet_audit_agent.models import ChatResponse
 
-_EVAL_LOG = Path(__file__).parents[4] / "data" / "evals" / "eval_log.jsonl"
+
+def _find_agent_root() -> Path:
+    p = Path(__file__).resolve()
+    for parent in p.parents:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    return Path(__file__).resolve().parents[3]
+
+
+_EVAL_LOG = _find_agent_root() / "data" / "evals" / "eval_log.jsonl"
 
 
 class AutoEvaluator:

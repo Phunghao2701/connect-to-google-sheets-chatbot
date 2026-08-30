@@ -1,4 +1,4 @@
-﻿"""Reranker: heuristic cross-score combining BM25 + metadata + lesson boost."""
+"""Reranker: heuristic cross-score combining BM25 + metadata + lesson boost."""
 
 from __future__ import annotations
 
@@ -58,13 +58,20 @@ class Reranker:
 
             # 3. Metadata bonus
             meta_bonus = 0.0
+            doc_years = doc.get("years", [])
             doc_year = doc.get("year")
             doc_type = doc.get("type", "")
+            payment_by_year = doc.get("payment_by_year", {})
 
-            if rq.year_hint and doc_year == rq.year_hint:
-                meta_bonus += 0.5
+            if rq.year_hint and (doc_year == rq.year_hint or rq.year_hint in doc_years or rq.year_hint in payment_by_year):
+                meta_bonus += 0.4
             if rq.stt_hint and str(doc.get("stt", "")) == rq.stt_hint:
-                meta_bonus += 0.5
+                meta_bonus += 0.4
+            if rq.method_hint and rq.year_hint and rq.year_hint in payment_by_year:
+                if payment_by_year[rq.year_hint].get("method", "").upper() == rq.method_hint.upper():
+                    meta_bonus += 0.3
+            elif rq.method_hint and any(p.get("method", "").upper() == rq.method_hint.upper() for p in payment_by_year.values()):
+                meta_bonus += 0.2
             if rq.is_summary and doc_type == "summary":
                 meta_bonus += 0.3
             meta_bonus = min(meta_bonus, 1.0)

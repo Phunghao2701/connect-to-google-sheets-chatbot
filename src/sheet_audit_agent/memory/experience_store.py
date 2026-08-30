@@ -1,4 +1,4 @@
-﻿"""Experience Store: persistent JSON-backed CRUD for lesson records."""
+"""Experience Store: persistent JSON-backed CRUD for lesson records."""
 
 from __future__ import annotations
 
@@ -8,8 +8,19 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-# Default path relative to package root (can be overridden via env)
-_DEFAULT_STORE = Path(__file__).parents[4] / "data" / "experience_store.json"
+
+def _find_agent_root() -> Path:
+    """Walk up from this file until we find pyproject.toml (the agent root)."""
+    p = Path(__file__).resolve()
+    for parent in p.parents:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    # Fallback: use parents[3] which is agent/ for the standard layout
+    # src/sheet_audit_agent/memory/experience_store.py → parents[3] = agent/
+    return Path(__file__).resolve().parents[3]
+
+
+_DEFAULT_STORE = _find_agent_root() / "data" / "experience_store.json"
 
 
 class ExperienceRecord:

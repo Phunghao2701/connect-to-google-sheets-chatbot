@@ -1,4 +1,4 @@
-﻿"""Hybrid Retriever: QueryRewriter → BM25 + TokenOverlap → Reranker → Context."""
+"""Hybrid Retriever: QueryRewriter → BM25 + TokenOverlap → Reranker → Context."""
 
 from __future__ import annotations
 
@@ -59,13 +59,26 @@ class SheetRetriever:
         # --- Stage 2: Metadata filter — hard remove mismatched years ---
         filtered: list[dict[str, Any]] = []
         for i, doc in enumerate(candidates):
+            doc_years = doc.get("years", [])
             doc_year = doc.get("year")
-            # Keep if no year hint, or doc has no year, or years match
-            if rq.year_hint and doc_year and doc_year != rq.year_hint:
-                if doc.get("type") != "summary":  # Always keep summaries
+            doc_type = doc.get("type", "")
+
+            # If user specified a year and this doc has specific year information
+            if rq.year_hint:
+                if doc_type == "summary":
+                    # Keep summary records if they mention the year or have general totals
+                    filtered.append(doc)
+                elif doc_years and rq.year_hint not in doc_years:
+                    # Explicitly belongs to other years
                     bm25_score_map.pop(i, None)
                     continue
-            filtered.append(doc)
+                elif doc_year and doc_year != rq.year_hint:
+                    bm25_score_map.pop(i, None)
+                    continue
+                else:
+                    filtered.append(doc)
+            else:
+                filtered.append(doc)
 
         # Rebuild index map after filter
         filtered_score_map: dict[int, float] = {}

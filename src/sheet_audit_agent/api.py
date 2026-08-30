@@ -1,4 +1,4 @@
-﻿"""FastAPI transport connecting RAG System, Agent Harness, and Ollama Brain."""
+"""FastAPI transport connecting RAG System, Agent Harness, and Ollama Brain."""
 
 from __future__ import annotations
 
@@ -95,6 +95,17 @@ def create_app() -> FastAPI:
         )
         if record:
             _experience_store.add(record)
+            # Adjust confidence of related lessons based on feedback (deduplicated)
+            is_success = payload.signal in ("user_approved", "auto_pass")
+            related_ids: set[str] = set()
+            for tag in record.context_tags:
+                for existing in _experience_store.retrieve_relevant([tag], top_k=2):
+                    if existing.id != record.id:
+                        related_ids.add(existing.id)
+
+            for record_id in related_ids:
+                _experience_store.update_outcome(record_id, succeeded=is_success)
+
             return {"status": "saved", "lesson_id": record.id}
         return {"status": "skipped", "reason": gate_decision.reason}
 

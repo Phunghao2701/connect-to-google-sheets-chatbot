@@ -1,4 +1,4 @@
-﻿"""Query Rewriter: normalize and expand Vietnamese query for better retrieval."""
+"""Query Rewriter: normalize and expand Vietnamese query for better retrieval."""
 
 from __future__ import annotations
 
@@ -20,9 +20,10 @@ _SYNONYMS: dict[str, list[str]] = {
     "nguoi": ["người", "thành viên", "member"],
 }
 
-# Diacritics strip map for normalization
+# Diacritics strip map for normalization (correctly handles đ/Đ)
 def _strip_diacritics(text: str) -> str:
-    nfkd = unicodedata.normalize("NFKD", text)
+    replaced = text.replace("Đ", "D").replace("đ", "d")
+    nfkd = unicodedata.normalize("NFKD", replaced)
     return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
@@ -53,8 +54,9 @@ class QueryRewriter:
         year_match = re.search(r"\b(20\d{2})\b", normalized)
         year_hint: int | None = int(year_match.group(1)) if year_match else None
 
-        # Extract STT hint
-        stt_match = re.search(r"\b(?:stt|dong|row|#)?\s*(\d+)\b", normalized)
+        # Extract STT hint — prefix is REQUIRED to avoid capturing years as STT
+        # Matches: "stt 6", "#3", "dong 2", "row 1" — NOT bare "2026"
+        stt_match = re.search(r"(?:(?:\bstt\b|\bdong\b|\brow\b|#)\s*)(\d+)\b", normalized)
         stt_hint: str | None = stt_match.group(1) if stt_match else None
 
         # Extract method hint
@@ -63,6 +65,12 @@ class QueryRewriter:
             method_hint = "CK"
         elif re.search(r"\b(tm|tien mat|cash)\b", normalized):
             method_hint = "TM"
+
+        # Detect all-years / multi-year modifier (e.g. "cả 2 năm", "cả hai năm", "tất cả các năm", "mọi năm")
+        all_years_hint = bool(re.search(
+            r"\b(?:ca 2 nam|ca hai nam|ca 2|ca hai|tat ca cac nam|tat ca nam|moi nam|cac nam)\b",
+            normalized,
+        ))
 
         # Detect summary intent
         is_summary = any(k in normalized for k in [
@@ -77,6 +85,7 @@ class QueryRewriter:
             year_hint=year_hint,
             stt_hint=stt_hint,
             method_hint=method_hint,
+            all_years_hint=all_years_hint,
             is_summary=is_summary,
             tokens=set(expanded.split()),
         )
@@ -93,6 +102,7 @@ class RewrittenQuery:
         year_hint: int | None,
         stt_hint: str | None,
         method_hint: str | None,
+        all_years_hint: bool,
         is_summary: bool,
         tokens: set[str],
     ) -> None:
@@ -102,5 +112,7 @@ class RewrittenQuery:
         self.year_hint = year_hint
         self.stt_hint = stt_hint
         self.method_hint = method_hint
+        self.all_years_hint = all_years_hint
         self.is_summary = is_summary
         self.tokens = tokens
+
